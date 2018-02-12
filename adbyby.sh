@@ -5,7 +5,7 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: ADbyby
-#	Version: 1.0.0
+#	Version: 1.0.1
 #	Author: Toyo
 #	Blog: https://doub.io/adbyby-jc2/
 #=================================================
@@ -46,10 +46,10 @@ check_pid(){
 }
 Download_adbyby(){
 	cd ${file}
-	if [ ${bit} == "x86_64" ]; then
-		wget -O "adbyby.tar.gz" "http://update.adbyby.com/download/linux.64.tar.gz"
+	if [[ ${bit} == "x86_64" ]]; then
+		wget --no-check-certificate -O "adbyby.tar.gz" "https://raw.githubusercontent.com/adbyby/Files/master/linux.64.tar.gz"
 	else
-		wget -O "adbyby.tar.gz" "http://update.adbyby.com/download/linux.86.tar.gz"
+		wget --no-check-certificate -O "adbyby.tar.gz" "https://raw.githubusercontent.com/adbyby/Files/master/linux.86.tar.gz"
 	fi
 	[[ ! -e "adbyby.tar.gz" ]] && echo -e "${Error} ADbyby 下载失败 !" && exit 1
 	tar -xzf adbyby.tar.gz && rm -rf adbyby.tar.gz
@@ -162,22 +162,15 @@ Save_iptables(){
 	fi
 }
 Set_iptables(){
-	echo "1" > /proc/sys/net/ipv4/ip_forward
+	echo -e "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+	sysctl -p
 	if [[ ${release} == "centos" ]]; then
 		service iptables save
 		chkconfig --level 2345 iptables on
-	elif [[ ${release} == "debian" ]]; then
+	else
 		iptables-save > /etc/iptables.up.rules
-		cat > /etc/network/if-pre-up.d/iptables<<-EOF
-#!/bin/bash
-/sbin/iptables-restore < /etc/iptables.up.rules
-EOF
+		echo -e '#!/bin/bash\n/sbin/iptables-restore < /etc/iptables.up.rules' > /etc/network/if-pre-up.d/iptables
 		chmod +x /etc/network/if-pre-up.d/iptables
-	elif [[ ${release} == "ubuntu" ]]; then
-		iptables-save > /etc/iptables.up.rules
-		echo -e "\npre-up iptables-restore < /etc/iptables.up.rules
-post-down iptables-save > /etc/iptables.up.rules" >> /etc/network/interfaces
-		chmod +x /etc/network/interfaces
 	fi
 }
 echo && echo -e "请输入一个数字来选择选项

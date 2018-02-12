@@ -14,10 +14,11 @@
 
 NAME="Cloud Torrent"
 NAME_BIN="cloud-torrent"
-FILE="/etc/cloudtorrent"
+FILE="/usr/local/cloudtorrent"
 BIN="${FILE}/cloud-torrent"
 CONFIG="${FILE}/cloud-torrent.json"
 CONF="${FILE}/cloud-torrent.conf"
+LOG="/tmp/ct.log"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
@@ -34,22 +35,38 @@ check_running(){
 }
 read_config(){
 	[[ ! -e ${CONF} ]] && echo -e "${Error} Cloud Torrent 配置文件不存在 !" && exit 1
-	port=`cat ${CONF}|grep "port"|awk -F "=" '{print $NF}'`
-	user=`cat ${CONF}|grep "user"|awk -F "=" '{print $NF}'`
-	passwd=`cat ${CONF}|grep "passwd"|awk -F "=" '{print $NF}'`
+	host=`cat ${CONF}|grep "host = "|awk -F "host = " '{print $NF}'`
+	port=`cat ${CONF}|grep "port = "|awk -F "port = " '{print $NF}'`
+	user=`cat ${CONF}|grep "user = "|awk -F "user = " '{print $NF}'`
+	passwd=`cat ${CONF}|grep "passwd = "|awk -F "passwd = " '{print $NF}'`
 }
 View_User(){
-	ip=`wget -qO- -t1 -T2 ipinfo.io/ip`
-	[[ -z ${ip} ]] && ip="VPS_IP"
+	if [[ "${host}" == "0.0.0.0" ]]; then
+		host=$(wget -qO- -t1 -T2 ipinfo.io/ip)
+		if [[ -z "${host}" ]]; then
+			host=$(wget -qO- -t1 -T2 api.ip.sb/ip)
+			if [[ -z "${host}" ]]; then
+				host=$(wget -qO- -t1 -T2 members.3322.org/dyndns/getip)
+				if [[ -z "${host}" ]]; then
+					host="VPS_IP"
+				fi
+			fi
+		fi
+	fi
+	if [[ "${port}" == "80" ]]; then
+		port=""
+	else
+		port=":${port}"
+	fi
 	if [[ -z ${user} ]]; then
 		clear && echo "————————————————" && echo
 		echo -e " 你的 Cloud Torrent 信息 :" && echo
-		echo -e " 地址\t: ${Green_font_prefix}http://${ip}:${port}${Font_color_suffix}"
+		echo -e " 地址\t: ${Green_font_prefix}http://${host}${port}${Font_color_suffix}"
 		echo && echo "————————————————"
 	else
 		clear && echo "————————————————" && echo
 		echo -e " 你的 Cloud Torrent 信息 :" && echo
-		echo -e " 地址\t: ${Green_font_prefix}http://${ip}:${port}${Font_color_suffix}"
+		echo -e " 地址\t: ${Green_font_prefix}http://${host}${port}${Font_color_suffix}"
 		echo -e " 用户\t: ${Green_font_prefix}${user}${Font_color_suffix}"
 		echo -e " 密码\t: ${Green_font_prefix}${passwd}${Font_color_suffix}"
 		echo && echo "————————————————"
@@ -64,9 +81,9 @@ do_start(){
 		cd ${FILE}
 		echo -e "${Info} $NAME 启动中..."
 		if [[ -z ${user} ]]; then
-			./cloud-torrent -p ${port} -l >> ct.log 2>&1 &
+			./cloud-torrent -t "Cloud Torrent - DOUBI" -h "${host}" -p ${port} -l >> "${LOG}" 2>&1 &
 		else
-			./cloud-torrent -p ${port} -l -a ${user}:${passwd}>> ct.log 2>&1 &
+			./cloud-torrent -t "Cloud Torrent - DOUBI" -h "${host}" -p ${port} -l -a "${user}:${passwd}" >> "${LOG}" 2>&1 &
 		fi
 		sleep 2s
 		check_running
@@ -74,7 +91,7 @@ do_start(){
 			echo -e "${Info} $NAME 启动成功 !"
 			View_User
 		else
-			echo -e "${Error} $NAME 启动失败 !"
+			echo -e "${Error} $NAME 启动失败(请运行脚本查看日志错误输出) !"
 		fi
 	fi
 }

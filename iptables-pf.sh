@@ -5,11 +5,11 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: iptables Port forwarding
-#	Version: 1.1.0
+#	Version: 1.1.1
 #	Author: Toyo
 #	Blog: https://doub.io/wlzy-20/
 #=================================================
-sh_ver="1.1.0"
+sh_ver="1.1.1"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
@@ -79,12 +79,12 @@ Set_local_port(){
 	echo && echo -e "	本地监听端口 : ${Red_font_prefix}${local_port}${Font_color_suffix}" && echo
 }
 Set_local_ip(){
-	stty erase '^H' && read -p "请输入 本服务器的 公网IP(回车自动检测):" local_ip
+	stty erase '^H' && read -p "请输入 本服务器的 网卡IP(注意是网卡绑定的IP，而不仅仅是公网IP，回车自动检测外网IP):" local_ip
 	if [[ -z "${local_ip}" ]]; then
 		local_ip=$(wget -qO- -t1 -T2 ipinfo.io/ip)
 		if [[ -z "${local_ip}" ]]; then
 			echo "${Error} 无法检测到本服务器的公网IP，请手动输入"
-			stty erase '^H' && read -p "请输入 本服务器的 公网IP:" local_ip
+			stty erase '^H' && read -p "请输入 本服务器的 网卡IP(注意是网卡绑定的IP，而不仅仅是公网IP):" local_ip
 			[[ -z "${local_ip}" ]] && echo "取消..." && exit 1
 		fi
 	fi
@@ -176,7 +176,7 @@ Del_forwarding(){
 			forwarding_type=$(echo -e "${forwarding_text}"| awk '{print $4}' | sed -n "${Del_forwarding_num}p")
 			forwarding_listen=$(echo -e "${forwarding_text}"| awk '{print $11}' | sed -n "${Del_forwarding_num}p" | awk -F "dpt:" '{print $2}' | sed 's/-/:/g')
 			[[ -z ${forwarding_listen} ]] && forwarding_listen=$(echo -e "${forwarding_text}"| awk '{print $11}' |sed -n "${Del_forwarding_num}p" | awk -F "dpts:" '{print $2}')
-			Del_iptables "${forwarding_type}"
+			Del_iptables "${forwarding_type}" "${Del_forwarding_num}"
 			Save_iptables
 			echo && echo -e "${Info} iptables 端口转发规则删除完成 !" && echo
 		else
@@ -202,7 +202,7 @@ Uninstall_forwarding(){
 			forwarding_listen=$(echo -e "${forwarding_text}"|awk '{print $11}'|sed -n "${integer}p"|awk -F "dpt:" '{print $2}')
 			[[ -z ${forwarding_listen} ]] && forwarding_listen=$(echo -e "${forwarding_text}"| awk '{print $11}'|sed -n "${integer}p"|awk -F "dpts:" '{print $2}')
 			# echo -e "${forwarding_text} ${forwarding_type} ${forwarding_listen}"
-			Del_iptables "${forwarding_type}"
+			Del_iptables "${forwarding_type}" "${integer}"
 		done
 		Save_iptables
 		echo && echo -e "${Info} iptables 已清空 所有端口转发规则 !" && echo
@@ -213,12 +213,14 @@ Uninstall_forwarding(){
 Add_iptables(){
 	iptables -t nat -A PREROUTING -p "$1" --dport "${local_port}" -j DNAT --to-destination "${forwarding_ip}":"${forwarding_port}"
 	iptables -t nat -A POSTROUTING -p "$1" -d "${forwarding_ip}" --dport "${forwarding_port_1}" -j SNAT --to-source "${local_ip}"
+	echo "iptables -t nat -A PREROUTING -p $1 --dport ${local_port} -j DNAT --to-destination ${forwarding_ip}:${forwarding_port}"
+	echo "iptables -t nat -A POSTROUTING -p $1 -d ${forwarding_ip} --dport ${forwarding_port_1} -j SNAT --to-source ${local_ip}"
 	echo "${local_port}"
 	iptables -I INPUT -m state --state NEW -m "$1" -p "$1" --dport "${local_port}" -j ACCEPT
 }
 Del_iptables(){
-	iptables -t nat -D POSTROUTING "1"
-	iptables -t nat -D PREROUTING "1"
+	iptables -t nat -D POSTROUTING "$2"
+	iptables -t nat -D PREROUTING "$2"
 	iptables -D INPUT -m state --state NEW -m "$1" -p "$1" --dport "${forwarding_listen}" -j ACCEPT
 }
 Save_iptables(){
@@ -234,14 +236,10 @@ Set_iptables(){
 	if [[ ${release} == "centos" ]]; then
 		service iptables save
 		chkconfig --level 2345 iptables on
-	elif [[ ${release} == "debian" ]]; then
+	else
 		iptables-save > /etc/iptables.up.rules
 		echo -e '#!/bin/bash\n/sbin/iptables-restore < /etc/iptables.up.rules' > /etc/network/if-pre-up.d/iptables
 		chmod +x /etc/network/if-pre-up.d/iptables
-	elif [[ ${release} == "ubuntu" ]]; then
-		iptables-save > /etc/iptables.up.rules
-		echo -e '\npre-up iptables-restore < /etc/iptables.up.rules\npost-down iptables-save > /etc/iptables.up.rules' >> /etc/network/interfaces
-		chmod +x /etc/network/interfaces
 	fi
 }
 Update_Shell(){

@@ -5,15 +5,16 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Brook
-#	Version: 1.0.1
+#	Version: 1.1.8
 #	Author: Toyo
 #	Blog: https://doub.io/brook-jc3/
 #=================================================
 
+sh_ver="1.1.8"
 file="/usr/local/brook"
 brook_file="/usr/local/brook/brook"
 brook_conf="/usr/local/brook/brook.conf"
-brook_ver="/usr/local/brook/ver.txt"
+brook_log="/usr/local/brook/brook.log"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
@@ -43,7 +44,7 @@ check_installed_status(){
 	[[ ! -e ${brook_file} ]] && echo -e "${Error} Brook 没有安装，请检查 !" && exit 1
 }
 check_pid(){
-	PID=`ps -ef| grep "brook"| grep -v grep| grep -v ".sh"| grep -v "init.d"| grep -v "service"| awk '{print $2}'`
+	PID=`ps -ef| grep "brook"| grep -v "grep" | grep -v ".sh"| grep -v "init.d" |grep -v "service" |awk '{print $2}'`
 }
 check_new_ver(){
 	brook_new_ver=`wget -qO- https://github.com/txthinking/brook/tags| grep "/txthinking/brook/releases/tag/"| head -n 1| awk -F "/tag/" '{print $2}'| sed 's/\">//'`
@@ -56,12 +57,13 @@ check_new_ver(){
 	fi
 }
 check_ver_comparison(){
-	brook_now_ver=`cat ${brook_ver}`
-	[[ -z ${brook_now_ver} ]] && echo "${brook_new_ver}" > ${brook_ver}
-	if [[ ${brook_now_ver} != ${brook_new_ver} ]]; then
+	brook_now_ver=$(${brook_file} -v|awk '{print $3}')
+	[[ -z ${brook_now_ver} ]] && echo -e "${Error} Brook 当前版本获取失败 !" && exit 1
+	brook_now_ver="v${brook_now_ver}"
+	if [[ "${brook_now_ver}" != "${brook_new_ver}" ]]; then
 		echo -e "${Info} 发现 Brook 已有新版本 [ ${brook_new_ver} ]"
 		stty erase '^H' && read -p "是否更新 ? [Y/n] :" yn
-		[ -z "${yn}" ] && yn="y"
+		[[ -z "${yn}" ]] && yn="y"
 		if [[ $yn == [Yy] ]]; then
 			check_pid
 			[[ ! -z $PID ]] && kill -9 ${PID}
@@ -83,51 +85,89 @@ Download_brook(){
 	fi
 	[[ ! -e "brook" ]] && echo -e "${Error} Brook 下载失败 !" && exit 1
 	chmod +x brook
-	echo "${brook_new_ver}" > ${brook_ver}
 }
 Service_brook(){
 	if [[ ${release} = "centos" ]]; then
-		if ! wget --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/brook_centos -O /etc/init.d/brook; then
+		if ! wget --no-check-certificate "https://softs.fun/Bash/other/brook_centos" -O /etc/init.d/brook; then
 			echo -e "${Error} Brook服务 管理脚本下载失败 !" && exit 1
 		fi
-		chmod +x /etc/init.d/brook
+		chmod +x "/etc/init.d/brook"
 		chkconfig --add brook
 		chkconfig brook on
 	else
-		if ! wget --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/brook_debian -O /etc/init.d/brook; then
+		if ! wget --no-check-certificate "https://softs.fun/Bash/other/brook_debian" -O /etc/init.d/brook; then
 			echo -e "${Error} Brook服务 管理脚本下载失败 !" && exit 1
 		fi
-		chmod +x /etc/init.d/brook
+		chmod +x "/etc/init.d/brook"
 		update-rc.d -f brook defaults
 	fi
 	echo -e "${Info} Brook服务 管理脚本下载完成 !"
 }
 Installation_dependency(){
+	if [[ ${release} == "centos" ]]; then
+		Centos_yum
+	else
+		Debian_apt
+	fi
+	cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 	mkdir ${file}
+}
+Centos_yum(){
+	cat /etc/redhat-release |grep 7\..*|grep -i centos>/dev/null
+	if [[ $? = 0 ]]; then
+		yum update
+		yum install -y net-tools
+	fi
+}
+Debian_apt(){
+	cat /etc/issue |grep 9\..*>/dev/null
+	if [[ $? = 0 ]]; then
+		apt-get update
+		apt-get install -y net-tools
+	fi
 }
 Write_config(){
 	cat > ${brook_conf}<<-EOF
-port=${bk_port}
-passwd=${bk_passwd}
-timeout=${bk_timeout}
-deadline=${bk_deadline}
-music=${bk_music}
+${bk_protocol}
+${bk_port} ${bk_passwd}
 EOF
 }
 Read_config(){
 	[[ ! -e ${brook_conf} ]] && echo -e "${Error} Brook 配置文件不存在 !" && exit 1
-	port=`cat ${brook_conf}|grep "port"|awk -F "=" '{print $NF}'`
-	passwd=`cat ${brook_conf}|grep "passwd"|awk -F "=" '{print $NF}'`
-	timeout=`cat ${brook_conf}|grep "timeout"|awk -F "=" '{print $NF}'`
-	deadline=`cat ${brook_conf}|grep "deadline"|awk -F "=" '{print $NF}'`
-	music=`cat ${brook_conf}|grep "music"|awk -F "=" '{print $NF}'`
+	user_all=$(cat ${brook_conf}|sed "1d")
+	user_all_num=$(echo "${user_all}"|wc -l)
+	[[ -z ${user_all} ]] && echo -e "${Error} Brook 配置文件中用户配置为空 !" && exit 1
+	protocol=$(cat ${brook_conf}|sed -n "1p")
+}
+Set_port_Modify(){
+	while true
+		do
+		echo -e "请选择并输入要修改的 Brook 账号端口 [1-65535]"
+		stty erase '^H' && read -p "(默认取消):" bk_port_Modify
+		[[ -z "${bk_port_Modify}" ]] && echo "取消..." && exit 1
+		expr ${bk_port_Modify} + 0 &>/dev/null
+		if [[ $? -eq 0 ]]; then
+			if [[ ${bk_port_Modify} -ge 1 ]] && [[ ${bk_port_Modify} -le 65535 ]]; then
+				check_port "${bk_port_Modify}"
+				if [[ $? == 0 ]]; then
+					break
+				else
+					echo -e "${Error} 该端口不存在 [${bk_port_Modify}] !"
+				fi
+			else
+				echo "输入错误, 请输入正确的端口。"
+			fi
+		else
+			echo "输入错误, 请输入正确的端口。"
+		fi
+		done
 }
 Set_port(){
 	while true
 		do
-		echo -e "请输入 Brook 监听端口 [1-65535]"
+		echo -e "请输入 Brook 端口 [1-65535]（端口不能重复，避免冲突）"
 		stty erase '^H' && read -p "(默认: 2333):" bk_port
-		[[ -z "$bk_port" ]] && bk_port="2333"
+		[[ -z "${bk_port}" ]] && bk_port="2333"
 		expr ${bk_port} + 0 &>/dev/null
 		if [[ $? -eq 0 ]]; then
 			if [[ ${bk_port} -ge 1 ]] && [[ ${bk_port} -le 65535 ]]; then
@@ -151,84 +191,128 @@ Set_passwd(){
 	echo -e "	密码 : ${Red_background_prefix} ${bk_passwd} ${Font_color_suffix}"
 	echo "========================" && echo
 }
-Set_timeout(){
-	while true
-		do
-		echo -e "请输入 Brook 超时时间（0 代表不限，单位：秒）"
-		stty erase '^H' && read -p "(默认: 10):" bk_timeout
-		[[ -z "$bk_timeout" ]] && bk_timeout="10"
-		if [[ ${bk_timeout} -ge 0 ]] && [[ ${bk_timeout} -le 3600 ]]; then
-			echo && echo "========================"
-			echo -e "	端口 : ${Red_background_prefix} ${bk_timeout} 秒 ${Font_color_suffix}"
-			echo "========================" && echo
-			break
-		else
-			echo "输入错误, 请输入正确的数字。"
-		fi
-	done
-}
-Set_deadline(){
-	while true
-		do
-		echo -e "请输入 Brook 连接截止时间（0 代表不限，单位：秒）"
-		stty erase '^H' && read -p "(默认: 60):" bk_deadline
-		[[ -z "$bk_deadline" ]] && bk_deadline="60"
-		if [[ ${bk_deadline} -ge 0 ]] && [[ ${bk_deadline} -le 3600 ]]; then
-			echo && echo "========================"
-			echo -e "	端口 : ${Red_background_prefix} ${bk_deadline} 秒 ${Font_color_suffix}"
-			echo "========================" && echo
-			break
-		else
-			echo "输入错误, 请输入正确的数字。"
-		fi
-	done
-}
-Set_music(){
-	echo -e "请输入 Brook 音乐（黑人问号？不懂就直接回车
- ${Green_font_prefix}1.${Font_color_suffix} none (不使用)
- ${Green_font_prefix}2.${Font_color_suffix} chinamobile_sdc
- ${Green_font_prefix}3.${Font_color_suffix} chinaunicom_iread
- ${Green_font_prefix}4.${Font_color_suffix} chinaunicom_sales" && echo
-	stty erase '^H' && read -p "(默认: 1. none):" bk_music
-	[[ -z "${bk_music}" ]] && bk_music="1"
-	if [[ ${bk_music} == "1" ]]; then
-		bk_music="none"
-	elif [[ ${bk_music} == "2" ]]; then
-		bk_music="chinamobile_sdc"
-	elif [[ ${bk_music} == "3" ]]; then
-		bk_music="chinaunicom_iread"
-	elif [[ ${bk_music} == "4" ]]; then
-		bk_music="chinaunicom_sales"
+Set_protocol(){
+	echo -e "请选择 Brook 协议
+ ${Green_font_prefix}1.${Font_color_suffix} Brook（新版协议，即 [servers]）
+ ${Green_font_prefix}2.${Font_color_suffix} Brook Stream（旧版协议，即 [streamservers]，不推荐，除非使用新版协议速度慢）" && echo
+	stty erase '^H' && read -p "(默认: 1. Brook（新版协议）):" bk_protocol
+	[[ -z "${bk_protocol}" ]] && bk_protocol="1"
+	if [[ ${bk_protocol} == "1" ]]; then
+		bk_protocol="servers"
+	elif [[ ${bk_protocol} == "2" ]]; then
+		bk_protocol="streamservers"
 	else
-		bk_music="none"
+		bk_protocol="servers"
 	fi
 	echo && echo "========================"
-	echo -e "	音乐 : ${Red_background_prefix} ${bk_music} ${Font_color_suffix}"
+	echo -e "	协议 : ${Green_font_prefix}${bk_protocol}${Font_color_suffix}"
 	echo "========================" && echo
-	[[ ${bk_music} = "none" ]] && bk_music=""
-}
-Set_conf(){
-	Set_port
-	Set_passwd
-	Set_music
-	Set_timeout
-	Set_deadline
 }
 Set_brook(){
 	check_installed_status
-	check_pid
-	Set_conf
-	Read_config
-	Del_iptables
-	Write_config
+	echo && echo -e "你要做什么？
+ ${Green_font_prefix}1.${Font_color_suffix}  添加 用户配置
+ ${Green_font_prefix}2.${Font_color_suffix}  删除 用户配置
+ ${Green_font_prefix}3.${Font_color_suffix}  修改 用户配置
+ ${Green_font_prefix}4.${Font_color_suffix}  修改 混淆协议
+ 
+ ${Tip} 用户的端口是不能重复的，密码可以重复 !" && echo
+	stty erase '^H' && read -p "(默认: 取消):" bk_modify
+	[[ -z "${bk_modify}" ]] && echo "已取消..." && exit 1
+	if [[ ${bk_modify} == "1" ]]; then
+		Add_port_user
+	elif [[ ${bk_modify} == "2" ]]; then
+		Del_port_user
+	elif [[ ${bk_modify} == "3" ]]; then
+		Modify_port_user
+	elif [[ ${bk_modify} == "4" ]]; then
+		Modify_protocol
+	else
+		echo -e "${Error} 请输入正确的数字(1-4)" && exit 1
+	fi
+}
+check_port(){
+	check_port_1=$1
+	user_all=$(cat ${brook_conf}|sed '1d;/^\s*$/d')
+	#[[ -z "${user_all}" ]] && echo -e "${Error} Brook 配置文件中用户配置为空 !" && exit 1
+	check_port_statu=$(echo "${user_all}"|awk '{print $1}'|grep -w "${check_port_1}")
+	if [[ ! -z "${check_port_statu}" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+list_port(){
+	port_Type=$1
+	user_all=$(cat ${brook_conf}|sed '1d;/^\s*$/d')
+	if [[ -z "${user_all}" ]]; then
+		if [[ "${port_Type}" != "ADD" ]]; then
+			echo -e "${Error} Brook 配置文件中用户配置为空 !" && exit 1
+		fi
+	fi
+	port_all_1=$(echo "${user_all}"|awk '{print $1}')
+	echo -e "\n当前所有已使用端口：\n${port_all_1}\n========================\n"
+}
+Add_port_user(){
+	list_port "ADD"
+	Set_port
+	check_port "${bk_port}"
+	[[ $? == 0 ]] && echo -e "${Error} 该端口已存在 [${bk_port}] !" && exit 1
+	Set_passwd
+	echo "${bk_port} ${bk_passwd}" >> ${brook_conf}
 	Add_iptables
 	Save_iptables
+	Restart_brook
+}
+Del_port_user(){
+	list_port
+	Set_port
+	check_port "${bk_port}"
+	[[ $? == 1 ]] && echo -e "${Error} 该端口不存在 [${bk_port}] !" && exit 1
+	sed -i "/^${bk_port} /d" ${brook_conf}
+	port=${bk_port}
+	Del_iptables
+	Save_iptables
+	port_num=$(cat ${brook_conf}|sed '1d;/^\s*$/d'|wc -l)
+	if [[ ${port_num} == 0 ]]; then
+		echo -e "${Error} 已无任何端口 !"
+		Stop_brook
+	else
+		Restart_brook
+	fi
+}
+Modify_port_user(){
+	list_port
+	Set_port_Modify
+	echo -e "\n${Info} 开始输入新端口... \n"
+	Set_port
+	check_port "${bk_port}"
+	if [[ $? == 0 ]]; then
+		if [[ "${bk_port_Modify}" != "${bk_port}" ]]; then
+		echo -e "${Error} 该端口已存在 [${bk_port}] !" && exit 1
+		fi
+	fi
+	Set_passwd
+	sed -i "/^${bk_port_Modify} /d" ${brook_conf}
+	echo "${bk_port} ${bk_passwd}" >> ${brook_conf}
+	port=${bk_port_Modify}
+	Del_iptables
+	Add_iptables
+	Save_iptables
+	Restart_brook
+}
+Modify_protocol(){
+	Set_protocol
+	sed -i "1d" ${brook_conf}
+	sed -i '1i\'${bk_protocol} ${brook_conf}
 	Restart_brook
 }
 Install_brook(){
 	[[ -e ${brook_file} ]] && echo -e "${Error} 检测到 Brook 已安装 !" && exit 1
 	echo -e "${Info} 开始设置 用户配置..."
-	Set_conf
+	Set_port
+	Set_passwd
+	Set_protocol
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始检测最新版本..."
@@ -252,19 +336,25 @@ Start_brook(){
 	check_installed_status
 	check_pid
 	[[ ! -z ${PID} ]] && echo -e "${Error} Brook 正在运行，请检查 !" && exit 1
-	service brook start
+	/etc/init.d/brook start
+	sleep 1s
+	check_pid
+	[[ ! -z ${PID} ]] && View_brook
 }
 Stop_brook(){
 	check_installed_status
 	check_pid
 	[[ -z ${PID} ]] && echo -e "${Error} Brook 没有运行，请检查 !" && exit 1
-	service brook stop
+	/etc/init.d/brook stop
 }
 Restart_brook(){
 	check_installed_status
 	check_pid
-	[[ ! -z ${PID} ]] && service brook stop
-	service brook start
+	[[ ! -z ${PID} ]] && /etc/init.d/brook stop
+	/etc/init.d/brook start
+	sleep 1s
+	check_pid
+	[[ ! -z ${PID} ]] && View_brook
 }
 Update_brook(){
 	check_installed_status
@@ -280,15 +370,25 @@ Uninstall_brook(){
 	if [[ ${unyn} == [Yy] ]]; then
 		check_pid
 		[[ ! -z $PID ]] && kill -9 ${PID}
-		Read_config
-		Del_iptables
-		rm -rf ${file}
+		if [[ -e ${brook_conf} ]]; then
+			user_all=$(cat ${brook_conf}|sed "1d")
+			user_all_num=$(echo "${user_all}"|wc -l)
+			if [[ ! -z ${user_all} ]]; then
+				for((integer = 1; integer <= ${user_all_num}; integer++))
+				do
+					user_text=$(echo "${user_all}"|sed -n "${integer}p")
+					port=$(echo "${user_text}"|awk '{print $1}')
+					Del_iptables
+				done
+			fi
+		fi
+		rm -rf "${file}"
 		if [[ ${release} = "centos" ]]; then
 			chkconfig --del brook
 		else
 			update-rc.d -f brook remove
 		fi
-		rm -rf /etc/init.d/brook
+		rm -rf "/etc/init.d/brook"
 		echo && echo "Brook 卸载完成 !" && echo
 	else
 		echo && echo "卸载已取消..." && echo
@@ -297,16 +397,156 @@ Uninstall_brook(){
 View_brook(){
 	check_installed_status
 	Read_config
-	ip=`wget -qO- -t1 -T2 ipinfo.io/ip`
-	[[ -z ${ip} ]] && ip="VPS_IP"
-	[[ -z ${music} ]] && music="无 (客户端留空)"
-	clear && echo "————————————————" && echo
-	echo -e " Brook 信息 :" && echo
-	echo -e " 地址\t: ${Green_font_prefix}${ip}${Font_color_suffix}"
-	echo -e " 端口\t: ${Green_font_prefix}${port}${Font_color_suffix}"
-	echo -e " 密码\t: ${Green_font_prefix}${passwd}${Font_color_suffix}"
-	echo -e " 音乐\t: ${Green_font_prefix}${music}${Font_color_suffix}"
-	echo && echo "————————————————"
+	ip=$(wget -qO- -t1 -T2 ipinfo.io/ip)
+	if [[ -z "${ip}" ]]; then
+		ip=$(wget -qO- -t1 -T2 api.ip.sb/ip)
+		if [[ -z "${ip}" ]]; then
+			ip=$(wget -qO- -t1 -T2 members.3322.org/dyndns/getip)
+			if [[ -z "${ip}" ]]; then
+				ip="VPS_IP"
+			fi
+		fi
+	fi
+	if [[ ${protocol} == "servers" ]]; then
+		protocol="Brook(新版)"
+	elif [[ ${protocol} == "streamservers" ]]; then
+		protocol="Brook Stream(旧版)"
+	fi
+	clear && echo
+	echo -e "Brook 用户配置："
+	for((integer = 1; integer <= ${user_all_num}; integer++))
+		do
+			user_text=$(echo "${user_all}"|sed -n "${integer}p")
+			port=$(echo "${user_text}"|awk '{print $1}')
+			password=$(echo "${user_text}"|awk '{print $2}')
+			brook_link
+			echo -e "————————————————"
+			echo -e " 地址\t: ${Green_font_prefix}${ip}${Font_color_suffix}"
+			echo -e " 打开\t: ${Green_font_prefix}${port}${Font_color_suffix}"
+			echo -e " 密码\t: ${Green_font_prefix}${password}${Font_color_suffix}"
+			echo -e " 协议\t: ${Green_font_prefix}${protocol}${Font_color_suffix}"
+			echo -e "${Brook_link_1}"
+	done
+	echo
+	echo -e "${Tip} Brook链接 仅适用于Windows系统的 Brook Tools客户端（https://doub.io/dbrj-7/）。"
+	echo
+}
+brook_link(){
+	if [[ "${protocol}" == "Brook(新版)" ]]; then
+		Brook_URL_1="default ${ip}:${port} ${password}"
+	else
+		Brook_URL_1="stream ${ip}:${port} ${password}"
+	fi
+	#printf $(echo -n "xxx" | sed 's/\\/\\\\/g;s/\(%\)\([0-9a-fA-F][0-9a-fA-F]\)/\\x\2/g')"\n"
+	Brook_URL_1=$(echo "${Brook_URL_1}"|sed 's/ /%20/g;s/!/%21/g;s/#/%23/g;s/\$/%24/g;s/&/%26/g;s/'"'"'/%27/g;s/(/%28/g;s/)/%29/g;s/*/%2A/g;s/+/%2B/g;s/,/%2C/g;s/\//%2F/g;s/:/%3A/g;s/;/%3B/g;s/=/%3D/g;s/?/%3F/g;s/@/%40/g;s/\[/%5B/g;s/\]/%5D/g')
+	Brook_URL="brook://${Brook_URL_1}"
+	Brook_link_1=" Brook 链接 : ${Green_font_prefix}${Brook_URL}${Font_color_suffix}"
+}
+View_Log(){
+	check_installed_status
+	[[ ! -e ${brook_log} ]] && echo -e "${Error} Brook 日志文件不存在 !" && exit 1
+	echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志(正常情况是没有使用日志记录的)" && echo
+	tail -f ${brook_log}
+}
+# 显示 连接信息
+debian_View_user_connection_info(){
+	format_1=$1
+	Read_config
+	IP_total=`netstat -anp |grep 'ESTABLISHED' |grep 'brook' |grep 'tcp6' |awk '{print $5}' |awk -F ":" '{print $1}' |sort -u |wc -l`
+	echo -e "用户总数: ${Green_background_prefix} "${user_all_num}" ${Font_color_suffix} 链接IP总数: ${Green_background_prefix} "${IP_total}" ${Font_color_suffix} "
+	
+	for((integer = 1; integer <= ${user_all_num}; integer++))
+	do
+		user_port=$(echo "${user_all}"|sed -n "${integer}p"|awk '{print $1}')
+		user_IP_1=`netstat -anp |grep 'ESTABLISHED' |grep 'brook' |grep 'tcp6' |grep ":${user_port} " |awk '{print $5}' |awk -F ":" '{print $1}' |sort -u`
+		if [[ -z ${user_IP_1} ]]; then
+			user_IP_total="0"
+		else
+			user_IP_total=`echo -e "${user_IP_1}"|wc -l`
+			if [[ ${format_1} == "IP_address" ]]; then
+				echo -e "端口: ${Green_font_prefix}"${user_port}"${Font_color_suffix}\t 链接IP总数: ${Green_font_prefix}"${user_IP_total}"${Font_color_suffix}\t 当前链接IP: "
+				get_IP_address
+				echo
+			else
+				user_IP=$(echo -e "\n${user_IP_1}")
+				echo -e "端口: ${Green_font_prefix}"${user_port}"${Font_color_suffix}\t 链接IP总数: ${Green_font_prefix}"${user_IP_total}"${Font_color_suffix}\t 当前链接IP: ${Green_font_prefix}${user_IP}${Font_color_suffix}\n"
+			fi
+		fi
+		user_IP=""
+	done
+}
+centos_View_user_connection_info(){
+	format_1=$1
+	Read_config
+	IP_total=`netstat -anp |grep 'ESTABLISHED' |grep 'brook' |grep 'tcp' | grep '::ffff:' |awk '{print $5}' |awk -F ":" '{print $4}' |sort -u |wc -l`
+	echo -e "用户总数: ${Green_background_prefix} "${user_all_num}" ${Font_color_suffix} 链接IP总数: ${Green_background_prefix} "${IP_total}" ${Font_color_suffix} "
+	
+	for((integer = 1; integer <= ${user_all_num}; integer++))
+	do
+		user_port=$(echo "${user_all}"|sed -n "${integer}p"|awk '{print $1}')
+		user_IP_1=`netstat -anp |grep 'ESTABLISHED' |grep 'brook' |grep 'tcp' |grep ":${user_port} "|grep '::ffff:' |awk '{print $5}' |awk -F ":" '{print $4}' |sort -u`
+		if [[ -z ${user_IP_1} ]]; then
+			user_IP_total="0"
+		else
+			user_IP_total=`echo -e "${user_IP_1}"|wc -l`
+			if [[ ${format_1} == "IP_address" ]]; then
+				echo -e "端口: ${Green_font_prefix}"${user_port}"${Font_color_suffix}\t 链接IP总数: ${Green_font_prefix}"${user_IP_total}"${Font_color_suffix}\t 当前链接IP: "
+				get_IP_address
+				echo
+			else
+				user_IP=$(echo -e "\n${user_IP_1}")
+				echo -e "端口: ${Green_font_prefix}"${user_port}"${Font_color_suffix}\t 链接IP总数: ${Green_font_prefix}"${user_IP_total}"${Font_color_suffix}\t 当前链接IP: ${Green_font_prefix}${user_IP}${Font_color_suffix}\n"
+			fi
+		fi
+		user_list_all=${user_list_all}"端口: ${Green_font_prefix}"${user_port}"${Font_color_suffix}\t 链接IP总数: ${Green_font_prefix}"${user_IP_total}"${Font_color_suffix}\t 当前链接IP: ${Green_font_prefix}${user_IP}${Font_color_suffix}\n"
+		user_IP=""
+	done
+}
+View_user_connection_info(){
+	check_installed_status
+	echo && echo -e "请选择要显示的格式：
+ ${Green_font_prefix}1.${Font_color_suffix} 显示 IP 格式
+ ${Green_font_prefix}2.${Font_color_suffix} 显示 IP+IP归属地 格式" && echo
+	stty erase '^H' && read -p "(默认: 1):" brook_connection_info
+	[[ -z "${brook_connection_info}" ]] && brook_connection_info="1"
+	if [[ "${brook_connection_info}" == "1" ]]; then
+		View_user_connection_info_1 ""
+	elif [[ "${brook_connection_info}" == "2" ]]; then
+		echo -e "${Tip} 检测IP归属地(ipip.net)，如果IP较多，可能时间会比较长..."
+		View_user_connection_info_1 "IP_address"
+	else
+		echo -e "${Error} 请输入正确的数字(1-2)" && exit 1
+	fi
+}
+View_user_connection_info_1(){
+	format=$1
+	if [[ ${release} = "centos" ]]; then
+		cat /etc/redhat-release |grep 7\..*|grep -i centos>/dev/null
+		if [[ $? = 0 ]]; then
+			debian_View_user_connection_info "$format"
+		else
+			centos_View_user_connection_info "$format"
+		fi
+	else
+		debian_View_user_connection_info "$format"
+	fi
+}
+get_IP_address(){
+	#echo "user_IP_1=${user_IP_1}"
+	if [[ ! -z ${user_IP_1} ]]; then
+	#echo "user_IP_total=${user_IP_total}"
+		for((integer_1 = ${user_IP_total}; integer_1 >= 1; integer_1--))
+		do
+			IP=$(echo "${user_IP_1}" |sed -n "$integer_1"p)
+			#echo "IP=${IP}"
+			IP_address=$(wget -qO- -t1 -T2 http://freeapi.ipip.net/${IP}|sed 's/\"//g;s/,//g;s/\[//g;s/\]//g')
+			#echo "IP_address=${IP_address}"
+			#user_IP="${user_IP}\n${IP}(${IP_address})"
+			echo -e "${Green_font_prefix}${IP}${Font_color_suffix} (${IP_address})"
+			#echo "user_IP=${user_IP}"
+			sleep 1s
+		done
+	fi
 }
 Add_iptables(){
 	iptables -I INPUT -m state --state NEW -m tcp -p tcp --dport ${bk_port} -j ACCEPT
@@ -327,33 +567,53 @@ Set_iptables(){
 	if [[ ${release} == "centos" ]]; then
 		service iptables save
 		chkconfig --level 2345 iptables on
-	elif [[ ${release} == "debian" ]]; then
+	else
 		iptables-save > /etc/iptables.up.rules
-		cat > /etc/network/if-pre-up.d/iptables<<-EOF
-#!/bin/bash
-/sbin/iptables-restore < /etc/iptables.up.rules
-EOF
+		echo -e '#!/bin/bash\n/sbin/iptables-restore < /etc/iptables.up.rules' > /etc/network/if-pre-up.d/iptables
 		chmod +x /etc/network/if-pre-up.d/iptables
-	elif [[ ${release} == "ubuntu" ]]; then
-		iptables-save > /etc/iptables.up.rules
-		echo -e "\npre-up iptables-restore < /etc/iptables.up.rules
-post-down iptables-save > /etc/iptables.up.rules" >> /etc/network/interfaces
-		chmod +x /etc/network/interfaces
+	fi
+}
+Update_Shell(){
+	echo -e "当前版本为 [ ${sh_ver} ]，开始检测最新版本..."
+	sh_new_ver=$(wget --no-check-certificate -qO- "https://softs.fun/Bash/brook.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1) && sh_new_type="softs"
+	[[ -z ${sh_new_ver} ]] && sh_new_ver=$(wget --no-check-certificate -qO- "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/brook.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1) && sh_new_type="github"
+	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 检测最新版本失败 !" && exit 0
+	if [[ ${sh_new_ver} != ${sh_ver} ]]; then
+		echo -e "发现新版本[ ${sh_new_ver} ]，是否更新？[Y/n]"
+		stty erase '^H' && read -p "(默认: y):" yn
+		[[ -z "${yn}" ]] && yn="y"
+		if [[ ${yn} == [Yy] ]]; then
+			if [[ ${sh_new_type} == "softs" ]]; then
+				wget -N --no-check-certificate https://softs.fun/Bash/brook.sh && chmod +x brook.sh
+			else
+				wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/brook.sh && chmod +x brook.sh
+			fi
+			echo -e "脚本已更新为最新版本[ ${sh_new_ver} ] !"
+		else
+			echo && echo "	已取消..." && echo
+		fi
+	else
+		echo -e "当前已是最新版本[ ${sh_new_ver} ] !"
 	fi
 }
 check_sys
-echo && echo -e "请输入一个数字来选择选项
-
- ${Green_font_prefix}1.${Font_color_suffix} 安装 Brook
- ${Green_font_prefix}2.${Font_color_suffix} 升级 Brook
- ${Green_font_prefix}3.${Font_color_suffix} 卸载 Brook
+echo && echo -e "  Brook 一键管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
+  ---- Toyo | doub.io/brook-jc3 ----
+  
+ ${Green_font_prefix}0.${Font_color_suffix} 升级脚本
 ————————————
- ${Green_font_prefix}4.${Font_color_suffix} 启动 Brook
- ${Green_font_prefix}5.${Font_color_suffix} 停止 Brook
- ${Green_font_prefix}6.${Font_color_suffix} 重启 Brook
+ ${Green_font_prefix} 1.${Font_color_suffix} 安装 Brook
+ ${Green_font_prefix} 2.${Font_color_suffix} 升级 Brook
+ ${Green_font_prefix} 3.${Font_color_suffix} 卸载 Brook
 ————————————
- ${Green_font_prefix}7.${Font_color_suffix} 设置 Brook 账号
- ${Green_font_prefix}8.${Font_color_suffix} 查看 Brook 账号
+ ${Green_font_prefix} 4.${Font_color_suffix} 启动 Brook
+ ${Green_font_prefix} 5.${Font_color_suffix} 停止 Brook
+ ${Green_font_prefix} 6.${Font_color_suffix} 重启 Brook
+————————————
+ ${Green_font_prefix} 7.${Font_color_suffix} 设置 账号配置
+ ${Green_font_prefix} 8.${Font_color_suffix} 查看 账号信息
+ ${Green_font_prefix} 9.${Font_color_suffix} 查看 日志信息
+ ${Green_font_prefix}10.${Font_color_suffix} 查看 链接信息
 ————————————" && echo
 if [[ -e ${brook_file} ]]; then
 	check_pid
@@ -366,8 +626,11 @@ else
 	echo -e " 当前状态: ${Red_font_prefix}未安装${Font_color_suffix}"
 fi
 echo
-stty erase '^H' && read -p " 请输入数字 [1-8]:" num
+stty erase '^H' && read -p " 请输入数字 [0-10]:" num
 case "$num" in
+	0)
+	Update_Shell
+	;;
 	1)
 	Install_brook
 	;;
@@ -392,7 +655,13 @@ case "$num" in
 	8)
 	View_brook
 	;;
+	9)
+	View_Log
+	;;
+	10)
+	View_user_connection_info
+	;;
 	*)
-	echo "请输入正确数字 [1-8]"
+	echo "请输入正确数字 [0-10]"
 	;;
 esac

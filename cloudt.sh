@@ -5,16 +5,17 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: Cloud Torrent
-#	Version: 1.1.3
+#	Version: 1.2.2
 #	Author: Toyo
 #	Blog: https://doub.io/wlzy-12/
 #=================================================
 
-file="/etc/cloudtorrent"
-ct_file="/etc/cloudtorrent/cloud-torrent"
-dl_file="/etc/cloudtorrent/downloads"
-ct_config="/etc/cloudtorrent/cloud-torrent.json"
-ct_conf="/etc/cloudtorrent/cloud-torrent.conf"
+file="/usr/local/cloudtorrent"
+ct_file="/usr/local/cloudtorrent/cloud-torrent"
+dl_file="/usr/local/cloudtorrent/downloads"
+ct_config="/usr/local/cloudtorrent/cloud-torrent.json"
+ct_conf="/usr/local/cloudtorrent/cloud-torrent.conf"
+ct_log="/tmp/ct.log"
 IncomingPort="50007"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
@@ -39,32 +40,31 @@ check_sys(){
 	elif cat /proc/version | grep -q -E -i "centos|red hat|redhat"; then
 		release="centos"
     fi
-	bit=`uname -m`
+	bit=$(uname -m)
 }
 check_installed_status(){
 	[[ ! -e ${ct_file} ]] && echo -e "${Error} Cloud Torrent 没有安装，请检查 !" && exit 1
 }
 check_pid(){
-	PID=`ps -ef | grep cloud-torrent | grep -v grep | awk '{print $2}'`
+	PID=$(ps -ef | grep cloud-torrent | grep -v grep | awk '{print $2}')
 }
 check_new_ver(){
-	ct_new_ver=`wget --no-check-certificate -qO- https://github.com/jpillora/cloud-torrent/releases/latest | grep "<title>" | sed -r 's/.*Release (.+) · jpillora.*/\1/'`
+	ct_new_ver=$(wget --no-check-certificate -qO- https://github.com/jpillora/cloud-torrent/releases/latest | grep "<title>" | sed -r 's/.*Release (.+) · jpillora.*/\1/')
 	if [[ -z ${ct_new_ver} ]]; then
 		echo -e "${Error} Cloud Torrent 最新版本获取失败，请手动获取最新版本号[ https://github.com/jpillora/cloud-torrent/releases ]"
-		stty erase '^H' && read -p "请输入版本号 [ 格式 x.x.xx , 如 0.8.16 ] :" ct_new_ver
+		stty erase '^H' && read -p "请输入版本号 [ 格式 x.x.xx , 如 0.8.21 ] :" ct_new_ver
 		[[ -z "${ct_new_ver}" ]] && echo "取消..." && exit 1
 	else
-		echo -e "${Info} 检测到 Cloud Torrent 最新版本为 ${ct_new_ver}"
+		echo -e "${Info} Cloud Torrent 目前最新版本为 ${ct_new_ver}"
 	fi
 }
 check_ver_comparison(){
-	ct_now_ver=`cat /etc/cloudtorrent/ct_ver.txt`
-	[[ -z ${ct_now_ver} ]] && echo "${ct_new_ver}" > /etc/cloudtorrent/ct_ver.txt
+	ct_now_ver=$(${ct_file} --version)
 	if [[ ${ct_now_ver} != ${ct_new_ver} ]]; then
 		echo -e "${Info} 发现 Cloud Torrent 已有新版本 [ ${ct_new_ver} ]"
 		stty erase '^H' && read -p "是否更新 ? [Y/n] :" yn
 		[ -z "${yn}" ] && yn="y"
-		if [[ $yn == [Yy] ]]; then
+		if [[ ${yn} == [Yy] ]]; then
 			check_pid
 			[[ ! -z $PID ]] && kill -9 ${PID}
 			rm -rf ${ct_file}
@@ -77,32 +77,27 @@ check_ver_comparison(){
 }
 Download_ct(){
 	cd ${file}
-	if [ ${bit} == "x86_64" ]; then
+	if [[ ${bit} == "x86_64" ]]; then
 		wget --no-check-certificate -O cloud-torrent.gz "https://github.com/jpillora/cloud-torrent/releases/download/${ct_new_ver}/cloud-torrent_linux_amd64.gz"
-	elif [ ${bit} == "i386" ]; then
-		wget --no-check-certificate -O cloud-torrent.gz "https://github.com/jpillora/cloud-torrent/releases/download/${ct_new_ver}/cloud-torrent_linux_386.gz"
-	elif [ ${bit} == "i686" ]; then
-		wget --no-check-certificate -O cloud-torrent.gz "https://github.com/jpillora/cloud-torrent/releases/download/${ct_new_ver}/cloud-torrent_linux_386.gz"
 	else
-		echo -e "${Error} 不支持 ${bit} !" && exit 1
+		wget --no-check-certificate -O cloud-torrent.gz "https://github.com/jpillora/cloud-torrent/releases/download/${ct_new_ver}/cloud-torrent_linux_386.gz"
 	fi
 	[[ ! -e "cloud-torrent.gz" ]] && echo -e "${Error} Cloud Torrent 下载失败 !" && exit 1
 	gzip -d cloud-torrent.gz
 	[[ ! -e ${ct_file} ]] && echo -e "${Error} Cloud Torrent 解压失败(可能是 压缩包损坏 或者 没有安装 Gzip) !" && exit 1
 	rm -rf cloud-torrent.gz
 	chmod +x cloud-torrent
-	echo "${ct_new_ver}" > ct_ver.txt
 }
 Service_ct(){
 	if [[ ${release} = "centos" ]]; then
-		if ! wget --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/cloudt_centos -O /etc/init.d/cloudt; then
+		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/cloudt_centos" -O /etc/init.d/cloudt; then
 			echo -e "${Error} Cloud Torrent服务 管理脚本下载失败 !" && exit 1
 		fi
 		chmod +x /etc/init.d/cloudt
 		chkconfig --add cloudt
 		chkconfig cloudt on
 	else
-		if ! wget --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/cloudt_debian -O /etc/init.d/cloudt; then
+		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/other/cloudt_debian" -O /etc/init.d/cloudt; then
 			echo -e "${Error} Cloud Torrent服务 管理脚本下载失败 !" && exit 1
 		fi
 		chmod +x /etc/init.d/cloudt
@@ -111,7 +106,7 @@ Service_ct(){
 	echo -e "${Info} Cloud Torrent服务 管理脚本下载完成 !"
 }
 Installation_dependency(){
-	gzip_ver=`gzip -V`
+	gzip_ver=$(gzip -V)
 	if [[ -z ${gzip_ver} ]]; then
 		if [[ ${release} == "centos" ]]; then
 			yum update
@@ -121,30 +116,38 @@ Installation_dependency(){
 			apt-get install -y gzip
 		fi
 	fi
-	echo "nameserver 8.8.8.8" > /etc/resolv.conf
-	echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 	mkdir ${file}
 	mkdir ${dl_file}
 }
 Write_config(){
 	cat > ${ct_conf}<<-EOF
-port=${ct_port}
-user=${ct_user}
-passwd=${ct_passwd}
+host = ${ct_host}
+port = ${ct_port}
+user = ${ct_user}
+passwd = ${ct_passwd}
 EOF
 }
 Read_config(){
 	[[ ! -e ${ct_conf} ]] && echo -e "${Error} Cloud Torrent 配置文件不存在 !" && exit 1
-	port=`cat ${ct_conf}|grep "port"|awk -F "=" '{print $NF}'`
-	user=`cat ${ct_conf}|grep "user"|awk -F "=" '{print $NF}'`
-	passwd=`cat ${ct_conf}|grep "passwd"|awk -F "=" '{print $NF}'`
+	host=`cat ${ct_conf}|grep "host = "|awk -F "host = " '{print $NF}'`
+	port=`cat ${ct_conf}|grep "port = "|awk -F "port = " '{print $NF}'`
+	user=`cat ${ct_conf}|grep "user = "|awk -F "user = " '{print $NF}'`
+	passwd=`cat ${ct_conf}|grep "passwd = "|awk -F "passwd = " '{print $NF}'`
+}
+Set_host(){
+	echo -e "请输入 Cloud Torrent 监听域名或IP（当你要绑定域名前，记得先做好域名解析，目前只支持http://访问，不要写http://，只写域名！）"
+	stty erase '^H' && read -p "(默认: 0.0.0.0 监听网卡所有IP):" ct_host
+	[[ -z "${ct_host}" ]] && ct_host="0.0.0.0"
+	echo && echo "========================"
+	echo -e "	主机 : ${Red_background_prefix} ${ct_host} ${Font_color_suffix}"
+	echo "========================" && echo
 }
 Set_port(){
 	while true
 		do
-		echo -e "请输入 Cloud Torrent 监听端口 [1-65535]"
-		stty erase '^H' && read -p "(默认端口: 8000):" ct_port
-		[[ -z "$ct_port" ]] && ct_port="8000"
+		echo -e "请输入 Cloud Torrent 监听端口 [1-65535]（如果是绑定的域名，那么建议80端口）"
+		stty erase '^H' && read -p "(默认端口: 80):" ct_port
+		[[ -z "${ct_port}" ]] && ct_port="80"
 		expr ${ct_port} + 0 &>/dev/null
 		if [[ $? -eq 0 ]]; then
 			if [[ ${ct_port} -ge 1 ]] && [[ ${ct_port} -le 65535 ]]; then
@@ -158,7 +161,7 @@ Set_port(){
 		else
 			echo "输入错误, 请输入正确的端口。"
 		fi
-		done
+	done
 }
 Set_user(){
 	echo "请输入 Cloud Torrent 用户名"
@@ -176,10 +179,11 @@ Set_user(){
 	echo "========================" && echo
 }
 Set_conf(){
+	Set_host
 	Set_port
-	stty erase '^H' && read -p "是否设置 用户名和密码 ? [Y/n] :" yn
-	[[ -z "${yn}" ]] && yn="y"
-	if [[ $yn == [Yy] ]]; then
+	stty erase '^H' && read -p "是否设置 用户名和密码 ? [y/N] :" yn
+	[[ -z "${yn}" ]] && yn="n"
+	if [[ ${yn} == [Yy] ]]; then
 		Set_user
 	else
 		ct_user="" && ct_passwd=""
@@ -225,34 +229,31 @@ Start_ct(){
 	check_installed_status
 	check_pid
 	[[ ! -z ${PID} ]] && echo -e "${Error} Cloud Torrent 正在运行，请检查 !" && exit 1
-	service cloudt start
+	/etc/init.d/cloudt start
 }
 Stop_ct(){
 	check_installed_status
 	check_pid
 	[[ -z ${PID} ]] && echo -e "${Error} Cloud Torrent 没有运行，请检查 !" && exit 1
-	service cloudt stop
+	/etc/init.d/cloudt stop
 }
 Restart_ct(){
 	check_installed_status
 	check_pid
-	[[ ! -z ${PID} ]] && service cloudt stop
-	service cloudt start
+	[[ ! -z ${PID} ]] && /etc/init.d/cloudt stop
+	/etc/init.d/cloudt start
 }
 Log_ct(){
-# 判断日志是否存在
-	if [ ! -e ${file}"/ct.log" ]; then
-		echo -e "${Error} Cloud Torrent 日志文件不存在 !" && exit 1
-	else
-		echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志" && echo
-		tail -f /etc/cloudtorrent/ct.log
-	fi
+	[[ ! -e "${ct_log}" ]] && echo -e "${Error} Cloud Torrent 日志文件不存在 !" && exit 1
+	echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志" && echo
+	tail -f "${ct_log}"
 }
 Update_ct(){
 	check_installed_status
 	check_sys
 	check_new_ver
 	check_ver_comparison
+	/etc/init.d/cloudt start
 }
 Uninstall_ct(){
 	check_installed_status
@@ -279,17 +280,32 @@ Uninstall_ct(){
 View_ct(){
 	check_installed_status
 	Read_config
-	ip=`wget -qO- -t1 -T2 ipinfo.io/ip`
-	[[ -z ${ip} ]] && ip="VPS_IP"
+	if [[ "${host}" == "0.0.0.0" ]]; then
+		host=$(wget -qO- -t1 -T2 ipinfo.io/ip)
+		if [[ -z "${host}" ]]; then
+			host=$(wget -qO- -t1 -T2 api.ip.sb/ip)
+			if [[ -z "${host}" ]]; then
+				host=$(wget -qO- -t1 -T2 members.3322.org/dyndns/getip)
+				if [[ -z "${host}" ]]; then
+					host="VPS_IP"
+				fi
+			fi
+		fi
+	fi
+	if [[ "${port}" == "80" ]]; then
+		port=""
+	else
+		port=":${port}"
+	fi
 	if [[ -z ${user} ]]; then
 		clear && echo "————————————————" && echo
 		echo -e " 你的 Cloud Torrent 信息 :" && echo
-		echo -e " 地址\t: ${Green_font_prefix}http://${ip}:${port}${Font_color_suffix}"
+		echo -e " 地址\t: ${Green_font_prefix}http://${host}${port}${Font_color_suffix}"
 		echo && echo "————————————————"
 	else
 		clear && echo "————————————————" && echo
 		echo -e " 你的 Cloud Torrent 信息 :" && echo
-		echo -e " 地址\t: ${Green_font_prefix}http://${ip}:${port}${Font_color_suffix}"
+		echo -e " 地址\t: ${Green_font_prefix}http://${host}${port}${Font_color_suffix}"
 		echo -e " 用户\t: ${Green_font_prefix}${user}${Font_color_suffix}"
 		echo -e " 密码\t: ${Green_font_prefix}${passwd}${Font_color_suffix}"
 		echo && echo "————————————————"
@@ -322,18 +338,10 @@ Set_iptables(){
 	if [[ ${release} == "centos" ]]; then
 		service iptables save
 		chkconfig --level 2345 iptables on
-	elif [[ ${release} == "debian" ]]; then
+	else
 		iptables-save > /etc/iptables.up.rules
-		cat > /etc/network/if-pre-up.d/iptables<<-EOF
-#!/bin/bash
-/sbin/iptables-restore < /etc/iptables.up.rules
-EOF
+		echo -e '#!/bin/bash\n/sbin/iptables-restore < /etc/iptables.up.rules' > /etc/network/if-pre-up.d/iptables
 		chmod +x /etc/network/if-pre-up.d/iptables
-	elif [[ ${release} == "ubuntu" ]]; then
-		iptables-save > /etc/iptables.up.rules
-		echo -e "\npre-up iptables-restore < /etc/iptables.up.rules
-post-down iptables-save > /etc/iptables.up.rules" >> /etc/network/interfaces
-		chmod +x /etc/network/interfaces
 	fi
 }
 echo && echo -e "请输入一个数字来选择选项

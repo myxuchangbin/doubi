@@ -6,7 +6,7 @@ ssr.sh
 - 脚本说明: ShadowsocksR 一键安装/管理脚本，支持单端口/多端口切换和管理
 - 系统支持: CentOS6+ / Debian6+ / Ubuntu14+
 - 使用方法: https://doub.io/ss-jc42/
-- 项目地址: https://github.com/shadowsocksr/shadowsocksr/tree/manyuser
+- 项目地址: https://github.com/ToyoDAdoubi/shadowsocksr
 
 ### 脚本特点:
 目前网上的各个ShadowsocksR脚本基本都是只有 安装/启动/重启 等基础功能，对于小白来说还是不够简单方便。既然是一键脚本，那么就要尽可能地简单，小白更容易接受使用！
@@ -31,7 +31,7 @@ ssrmu.sh
 - 脚本说明: ShadowsocksR 一键安装/管理脚本，支持流量控制
 - 系统支持: CentOS6+ / Debian6+ / Ubuntu14+
 - 使用方法: https://doub.io/ss-jc60/
-- 项目地址: https://github.com/shadowsocksr/shadowsocksr/tree/manyuser
+- 项目地址: https://github.com/ToyoDAdoubi/shadowsocksr
 
 ### 脚本特点:
 目前网上的各个ShadowsocksR脚本基本都是只有 安装/启动/重启 等基础功能，对于小白来说还是不够简单方便。既然是一键脚本，那么就要尽可能地简单，小白更容易接受使用！
@@ -111,6 +111,18 @@ brook.sh
 wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/brook.sh && chmod +x brook.sh && bash brook.sh
 ```
 
+goflyway.sh
+======
+
+- 脚本说明: GoFlyway 一键安装脚本
+- 系统支持: CentOS6+ / Debian7+ / Ubuntu14+
+- 使用方法: https://doub.io/goflyway-jc2/
+
+### 下载安装:
+``` bash
+wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/goflyway.sh && chmod +x goflyway.sh && bash goflyway.sh
+```
+
 pipes.sh
 ======
 
@@ -187,6 +199,18 @@ aria2.sh
 wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/aria2.sh && chmod +x aria2.sh && bash aria2.sh
 ```
 
+ssh_port.sh
+======
+
+- 脚本说明: SSH 一键修改端口脚本
+- 系统支持: Debian6+ / Ubuntu14+
+- 使用方法: https://doub.io/linux-jc11/
+
+### 下载安装:
+``` bash
+wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/ssh_port.sh && chmod +x ssh_port.sh && bash ssh_port.sh
+```
+
 ocserv.sh
 ======
 
@@ -211,6 +235,18 @@ gogo.sh
 wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/gogo.sh && chmod +x gogo.sh && bash gogo.sh
 ```
 
+brook-pf.sh
+======
+
+- 脚本说明: Brook 端口转发 一键安装/管理脚本
+- 系统支持: CentOS6+ / Debian6+ / Ubuntu14+
+- 使用方法: https://doub.io/wlzy-37/
+
+### 下载安装:
+``` bash
+wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/brook-pf.sh && chmod +x brook-pf.sh && bash brook-pf.sh
+```
+
 socat.sh
 ======
 
@@ -221,6 +257,18 @@ socat.sh
 ### 下载安装:
 ``` bash
 wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/socat.sh && chmod +x socat.sh && bash socat.sh
+```
+
+tinymapper.sh
+======
+
+- 脚本说明: tinyPortMapper 一键安装/管理脚本
+- 系统支持: CentOS6+ / Debian6+ / Ubuntu14+
+- 使用方法: https://doub.io/wlzy-36/
+
+### 下载安装:
+``` bash
+wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/tinymapper.sh && chmod +x tinymapper.sh && bash tinymapper.sh
 ```
 
 haproxy.sh
@@ -281,6 +329,18 @@ adbyby.sh
 ### 下载安装:
 ``` bash
 wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/adbyby.sh && chmod +x adbyby.sh && bash adbyby.sh
+```
+
+libsodium.sh
+======
+
+- 脚本说明: libsodium 一键安装脚本
+- 系统支持: CentOS6+ / Debian6+ / Ubuntu14+
+- 使用方法: https://doub.io/shell-jc6/
+
+### 下载安装:
+``` bash
+wget -N --no-check-certificate https://raw.githubusercontent.com/ToyoDAdoubi/doubi/master/libsodium.sh && chmod +x libsodium.sh && bash libsodium.sh
 ```
 
 ban_iptables.sh

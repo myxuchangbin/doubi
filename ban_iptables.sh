@@ -4,11 +4,11 @@ export PATH
 #=================================================
 #       System Required: CentOS/Debian/Ubuntu
 #       Description: iptables 封禁 BT、PT、SPAM（垃圾邮件）和自定义端口、关键词
-#       Version: 1.0.6
+#       Version: 1.0.10
 #       Blog: https://doub.io/shell-jc2/
 #=================================================
 
-sh_ver="1.0.6"
+sh_ver="1.0.10"
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
 Error="${Red_font_prefix}[错误]${Font_color_suffix}"
@@ -28,8 +28,11 @@ BitTorrent
 announce_peer
 BitTorrent protocol
 announce.php?passkey=
-bt.
-magnet:"
+magnet:
+xunlei
+sandai
+Thunder
+XLLiveUD"
 
 check_sys(){
 	if [[ -f /etc/redhat-release ]]; then
@@ -94,39 +97,15 @@ Save_iptables_v4_v6(){
 		fi
 		service iptables save
 		chkconfig --level 2345 iptables on
-	elif [[ ${release} == "debian" ]]; then
+	else
 		if [[ ! -z "$v6iptables" ]]; then
 			ip6tables-save > /etc/ip6tables.up.rules
-			cat > /etc/network/if-pre-up.d/iptables<<-EOF
-#!/bin/bash
-/sbin/iptables-restore < /etc/iptables.up.rules
-/sbin/ip6tables-restore < /etc/ip6tables.up.rules
-EOF
+			echo -e "#!/bin/bash\n/sbin/iptables-restore < /etc/iptables.up.rules\n/sbin/ip6tables-restore < /etc/ip6tables.up.rules" > /etc/network/if-pre-up.d/iptables
 		else
-			cat > /etc/network/if-pre-up.d/iptables<<-EOF
-#!/bin/bash
-/sbin/iptables-restore < /etc/iptables.up.rules
-EOF
+			echo -e "#!/bin/bash\n/sbin/iptables-restore < /etc/iptables.up.rules" > /etc/network/if-pre-up.d/iptables
 		fi
 		iptables-save > /etc/iptables.up.rules
 		chmod +x /etc/network/if-pre-up.d/iptables
-	elif [[ ${release} == "ubuntu" ]]; then
-		if [[ ! -z "$v6iptables" ]]; then
-			ip6tables-save > /etc/ip6tables.up.rules
-			cat > /etc/network/interfaces<<-EOF
-pre-up iptables-restore < /etc/iptables.up.rules
-post-down iptables-save > /etc/iptables.up.rules
-pre-up ip6tables-restore < /etc/ip6tables.up.rules
-post-down ip6tables-save > /etc/ip6tables.up.rules
-EOF
-		else
-			cat > /etc/network/interfaces<<-EOF
-pre-up iptables-restore < /etc/iptables.up.rules
-post-down iptables-save > /etc/iptables.up.rules
-EOF
-		fi
-		iptables-save > /etc/iptables.up.rules
-		chmod +x /etc/network/interfaces
 	fi
 }
 Set_key_word() { $1 -t mangle -$3 OUTPUT -m string --string "$2" --algo bm --to 65535 -j DROP; }
@@ -136,10 +115,21 @@ Set_tcp_port() {
 }
 Set_udp_port() { $1 -t filter -$3 OUTPUT -p udp -m multiport --dports "$2" -j DROP; }
 Set_SPAM_Code_v4(){
-	for i in ${smtp_port} ${pop3_port} ${imap_port} ${other_port}; do Set_tcp_port $v4iptables "$i" $s && Set_udp_port $v4iptables "$i" $s; done
+	for i in ${smtp_port} ${pop3_port} ${imap_port} ${other_port}
+		do
+		Set_tcp_port $v4iptables "$i" $s
+		Set_udp_port $v4iptables "$i" $s
+	done
 }
 Set_SPAM_Code_v4_v6(){
-	for i in ${smtp_port} ${pop3_port} ${imap_port} ${other_port}; do for j in $v4iptables $v6iptables; do Set_tcp_port $j "$i" $s && Set_udp_port $j "$i" $s; done; done
+	for i in ${smtp_port} ${pop3_port} ${imap_port} ${other_port}
+	do
+		for j in $v4iptables $v6iptables
+		do
+			Set_tcp_port $j "$i" $s
+			Set_udp_port $j "$i" $s
+		done
+	done
 }
 Set_PORT(){
 	if [[ -n "$v4iptables" ]] && [[ -n "$v6iptables" ]]; then
@@ -262,11 +252,14 @@ UnBan_ALL(){
 }
 ENTER_Ban_KEY_WORDS_type(){
 	Type=$1
-	echo -e "请选择输入类型：
+	Type_1=$2
+	if [[ $Type_1 != "ban_1" ]]; then
+		echo -e "请选择输入类型：
  1. 手动输入（只支持单个关键词）
  2. 本地文件读取（支持批量读取关键词，每行一个关键词）
  3. 网络地址读取（支持批量读取关键词，每行一个关键词）" && echo
-	stty erase '^H' && read -p "(默认: 1. 手动输入):" key_word_type
+		stty erase '^H' && read -p "(默认: 1. 手动输入):" key_word_type
+	fi
 	[[ -z "${key_word_type}" ]] && key_word_type="1"
 	if [[ ${key_word_type} == "1" ]]; then
 		if [[ $Type == "ban" ]]; then
@@ -287,23 +280,27 @@ ENTER_Ban_KEY_WORDS_type(){
 	fi
 }
 ENTER_Ban_PORT(){
-	echo -e "请输入欲封禁的 端口（单端口/多端口/连续端口段）
- ${Green_font_prefix}========示例说明========${Font_color_suffix}
+	echo -e "请输入欲封禁的 端口（单端口/多端口/连续端口段）"
+	if [[ ${Ban_PORT_Type_1} != "1" ]]; then
+	echo -e "${Green_font_prefix}========示例说明========${Font_color_suffix}
  单端口：25（单个端口）
  多端口：25,26,465,587（多个端口用英文逗号分割）
  连续端口段：25:587（25-587之间的所有端口）" && echo
+	fi
 	stty erase '^H' && read -p "(回车默认取消):" PORT
-	[[ -z "${PORT}" ]] && echo "已取消..." && exit 0
+	[[ -z "${PORT}" ]] && echo "已取消..." && View_ALL && exit 0
 }
 ENTER_Ban_KEY_WORDS(){
-	echo -e "请输入欲封禁的 关键词（域名等，仅支持单个关键词）
- ${Green_font_prefix}========示例说明========${Font_color_suffix}
+	echo -e "请输入欲封禁的 关键词（域名等，仅支持单个关键词）"
+	if [[ ${Type_1} != "ban_1" ]]; then
+	echo -e "${Green_font_prefix}========示例说明========${Font_color_suffix}
  关键词：youtube，即禁止访问任何包含关键词 youtube 的域名。
  关键词：youtube.com，即禁止访问任何包含关键词 youtube.com 的域名（泛域名屏蔽）。
  关键词：www.youtube.com，即禁止访问任何包含关键词 www.youtube.com 的域名（子域名屏蔽）。
  更多效果自行测试（如关键词 .zip 即可禁止下载任何 .zip 后缀的文件）。" && echo
+	fi
 	stty erase '^H' && read -p "(回车默认取消):" key_word
-	[[ -z "${key_word}" ]] && echo "已取消..." && exit 0
+	[[ -z "${key_word}" ]] && echo "已取消..." && View_ALL && exit 0
 }
 ENTER_Ban_KEY_WORDS_file(){
 	echo -e "请输入欲封禁/解封的 关键词本地文件（请使用绝对路径）" && echo
@@ -311,60 +308,89 @@ ENTER_Ban_KEY_WORDS_file(){
 	[[ -z "${key_word}" ]] && key_word="key_word.txt"
 	if [[ -e "${key_word}" ]]; then
 		key_word=$(cat "${key_word}")
-		[[ -z ${key_word} ]] && echo -e "${Error} 文件内容为空 !" && exit 0
+		[[ -z ${key_word} ]] && echo -e "${Error} 文件内容为空 !" && View_ALL && exit 0
 	else
-		echo -e "${Error} 没有找到文件 ${key_word} !"
+		echo -e "${Error} 没有找到文件 ${key_word} !" && View_ALL && exit 0
 	fi
 }
 ENTER_Ban_KEY_WORDS_url(){
 	echo -e "请输入欲封禁/解封的 关键词网络文件地址（例如 http://xxx.xx/key_word.txt）" && echo
 	stty erase '^H' && read -p "(回车默认取消):" key_word
-	[[ -z "${key_word}" ]] && echo "已取消..." && exit 0
+	[[ -z "${key_word}" ]] && echo "已取消..." && View_ALL && exit 0
 	key_word=$(wget --no-check-certificate -t3 -T5 -qO- "${key_word}")
-	[[ -z ${key_word} ]] && echo -e "${Error} 网络文件内容为空或访问超时 !" && exit 0
+	[[ -z ${key_word} ]] && echo -e "${Error} 网络文件内容为空或访问超时 !" && View_ALL && exit 0
 }
 ENTER_UnBan_KEY_WORDS(){
 	View_KEY_WORDS
 	echo -e "请输入欲解封的 关键词（根据上面的列表输入完整准确的 关键词）" && echo
 	stty erase '^H' && read -p "(回车默认取消):" key_word
-	[[ -z "${key_word}" ]] && echo "已取消..." && exit 0
+	[[ -z "${key_word}" ]] && echo "已取消..." && View_ALL && exit 0
 }
 ENTER_UnBan_PORT(){
 	echo -e "请输入欲解封的 端口（根据上面的列表输入完整准确的 端口，包括逗号、冒号）" && echo
 	stty erase '^H' && read -p "(回车默认取消):" PORT
-	[[ -z "${PORT}" ]] && echo "已取消..." && exit 0
+	[[ -z "${PORT}" ]] && echo "已取消..." && View_ALL && exit 0
 }
 Ban_PORT(){
 	s="A"
 	ENTER_Ban_PORT
 	Set_PORT
+	echo -e "${Info} 已封禁端口 [ ${PORT} ] !\n"
+	Ban_PORT_Type_1="1"
+	while true
+	do
+		ENTER_Ban_PORT
+		Set_PORT
+		echo -e "${Info} 已封禁端口 [ ${PORT} ] !\n"
+	done
 	View_ALL
-	echo -e "${Info} 已封禁端口 [ ${PORT} ] !"
 }
 Ban_KEY_WORDS(){
 	s="A"
 	ENTER_Ban_KEY_WORDS_type "ban"
 	Set_KEY_WORDS
+	echo -e "${Info} 已封禁关键词 [ ${key_word} ] !\n"
+	while true
+	do
+		ENTER_Ban_KEY_WORDS_type "ban" "ban_1"
+		Set_KEY_WORDS
+		echo -e "${Info} 已封禁关键词 [ ${key_word} ] !\n"
+	done
 	View_ALL
-	echo -e "${Info} 已封禁关键词 [ ${key_word} ] !"
 }
 UnBan_PORT(){
 	s="D"
 	View_PORT
-	[[ -z ${Ban_PORT_list} ]] && echo -e "${Error} 检测到未封禁任何 端口，请检查 !" && exit 0
+	[[ -z ${Ban_PORT_list} ]] && echo -e "${Error} 检测到未封禁任何 端口 !" && exit 0
 	ENTER_UnBan_PORT
 	Set_PORT
+	echo -e "${Info} 已解封端口 [ ${PORT} ] !\n"
+	while true
+	do
+		View_PORT
+		[[ -z ${Ban_PORT_list} ]] && echo -e "${Error} 检测到未封禁任何 端口 !" && exit 0
+		ENTER_UnBan_PORT
+		Set_PORT
+		echo -e "${Info} 已解封端口 [ ${PORT} ] !\n"
+	done
 	View_ALL
-	echo -e "${Info} 已解封端口 [ ${PORT} ] !"
 }
 UnBan_KEY_WORDS(){
 	s="D"
 	Cat_KEY_WORDS
-	[[ -z ${Ban_KEY_WORDS_list} ]] && echo -e "${Error} 检测到未封禁任何 关键词，请检查 !" && exit 0
+	[[ -z ${Ban_KEY_WORDS_list} ]] && echo -e "${Error} 检测到未封禁任何 关键词 !" && exit 0
 	ENTER_Ban_KEY_WORDS_type "unban"
 	Set_KEY_WORDS
+	echo -e "${Info} 已解封关键词 [ ${key_word} ] !\n"
+	while true
+	do
+		Cat_KEY_WORDS
+		[[ -z ${Ban_KEY_WORDS_list} ]] && echo -e "${Error} 检测到未封禁任何 关键词 !" && exit 0
+		ENTER_Ban_KEY_WORDS_type "unban" "ban_1"
+		Set_KEY_WORDS
+		echo -e "${Info} 已解封关键词 [ ${key_word} ] !\n"
+	done
 	View_ALL
-	echo -e "${Info} 已解封关键词 [ ${key_word} ] !"
 }
 UnBan_KEY_WORDS_ALL(){
 	Cat_KEY_WORDS
@@ -381,6 +407,7 @@ UnBan_KEY_WORDS_ALL(){
 		do
 			${v4iptables} -t mangle -D OUTPUT 1
 	done
+	Save_iptables_v4_v6
 	View_ALL
 	echo -e "${Info} 已解封所有关键词 !"
 }
